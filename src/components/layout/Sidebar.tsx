@@ -1,22 +1,19 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard,
-  FileText,
-  BarChart3,
-  Settings,
-  Hotel,
-  ChevronLeft,
-  ChevronRight,
-  X,
+  LayoutDashboard, FileText, BarChart3, Settings, Hotel,
+  ChevronLeft, ChevronRight, X, LogOut, Lock,
 } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 
 const NAV_ITEMS = [
-  { icon: LayoutDashboard, label: 'Dashboard',       href: '#dashboard' },
-  { icon: FileText,        label: 'ODC Management',  href: '#odc',      active: true },
-  { icon: BarChart3,       label: 'Reports',         href: '#reports' },
-  { icon: Settings,        label: 'Settings',        href: '#settings' },
+  { icon: LayoutDashboard, label: 'Dashboard',      href: '/dashboard',  devOnly: false },
+  { icon: FileText,        label: 'ODC Management', href: '/',           devOnly: false },
+  { icon: BarChart3,       label: 'Reports',        href: '/reports',    devOnly: false },
+  { icon: Settings,        label: 'Settings',       href: '/settings',   devOnly: true  },
 ];
 
 interface SidebarProps {
@@ -25,8 +22,13 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
-  const [active, setActive] = useState('ODC Management');
+  const pathname    = usePathname();
+  const { user, logout, isDeveloper } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+
+  const roleBadgeStyle = user?.role === 'developer'
+    ? { background: '#8B5CF6', color: 'white' }
+    : { background: 'var(--brand-brass)', color: '#1B2A4A' };
 
   const navContent = (isMobile: boolean) => (
     <>
@@ -51,7 +53,6 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
             </p>
           </div>
         )}
-        {/* Close button — mobile only */}
         {isMobile && (
           <button
             onClick={onMobileClose}
@@ -74,38 +75,81 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
             Main Menu
           </p>
         )}
-        {NAV_ITEMS.map(({ icon: Icon, label, href }) => (
-          <a
-            key={label}
-            href={href}
-            onClick={() => {
-              setActive(label);
-              if (isMobile) onMobileClose?.();
-            }}
-            className={`sidebar-nav-item ${active === label ? 'active' : ''}`}
-            title={collapsed && !isMobile ? label : undefined}
-          >
-            <Icon size={18} className="flex-shrink-0" />
-            {(!collapsed || isMobile) && <span>{label}</span>}
-          </a>
-        ))}
+        {NAV_ITEMS.map(({ icon: Icon, label, href, devOnly }) => {
+          const isActive = pathname === href;
+          const isLocked = devOnly && !isDeveloper;
+
+          return (
+            <Link
+              key={label}
+              href={href}
+              onClick={() => { if (isMobile) onMobileClose?.(); }}
+              className={`sidebar-nav-item ${isActive ? 'active' : ''} ${isLocked ? 'opacity-50' : ''}`}
+              title={collapsed && !isMobile ? label : undefined}
+            >
+              <Icon size={18} className="flex-shrink-0" />
+              {(!collapsed || isMobile) && (
+                <span className="flex-1">{label}</span>
+              )}
+              {(!collapsed || isMobile) && isLocked && (
+                <Lock size={12} style={{ color: 'rgba(245,240,232,0.4)' }} />
+              )}
+            </Link>
+          );
+        })}
       </nav>
 
-      {/* Footer */}
+      {/* Footer — user info + logout */}
       <div
-        className="px-2 py-3 border-t flex-shrink-0"
+        className="px-2 py-3 border-t flex-shrink-0 space-y-1"
         style={{ borderColor: 'rgba(255,255,255,0.08)' }}
       >
-        {(!collapsed || isMobile) && (
-          <div className="px-3 py-2 rounded-md mb-2" style={{ background: 'rgba(184,150,78,0.1)' }}>
-            <p className="text-xs font-medium" style={{ color: 'var(--brand-brass-light)' }}>
-              ODC System v1.0
-            </p>
-            <p className="text-xs" style={{ color: 'rgba(245,240,232,0.4)' }}>
-              Hospitality Suite
-            </p>
+        {/* User card */}
+        {(!collapsed || isMobile) && user && (
+          <div
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg mb-1"
+            style={{ background: 'rgba(255,255,255,0.05)' }}
+          >
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+              style={roleBadgeStyle}
+            >
+              {user.initials}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold truncate" style={{ color: 'var(--brand-sand)' }}>
+                {user.displayName}
+              </p>
+              <p className="text-xs capitalize" style={{ color: user.role === 'developer' ? '#C4B5FD' : 'var(--brand-brass-light)', fontSize: '0.65rem', fontWeight: 600 }}>
+                {user.role}
+              </p>
+            </div>
           </div>
         )}
+
+        {/* Collapsed avatar */}
+        {collapsed && !isMobile && user && (
+          <div className="flex justify-center mb-1">
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+              style={roleBadgeStyle}
+              title={`${user.displayName} (${user.role})`}
+            >
+              {user.initials}
+            </div>
+          </div>
+        )}
+
+        {/* Logout */}
+        <button
+          onClick={logout}
+          className="sidebar-nav-item w-full"
+          title={collapsed && !isMobile ? 'Sign out' : undefined}
+        >
+          <LogOut size={16} className="flex-shrink-0" />
+          {(!collapsed || isMobile) && <span className="text-xs">Sign Out</span>}
+        </button>
+
         {/* Collapse toggle — desktop only */}
         {!isMobile && (
           <button
@@ -123,7 +167,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
 
   return (
     <>
-      {/* ── Desktop sidebar (md+) ── */}
+      {/* Desktop sidebar */}
       <aside
         style={{
           width: collapsed ? '64px' : '240px',
@@ -135,9 +179,8 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
         {navContent(false)}
       </aside>
 
-      {/* ── Mobile sidebar (< md) — overlay drawer ── */}
+      {/* Mobile sidebar */}
       <>
-        {/* Backdrop */}
         <div
           className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 md:hidden ${
             mobileOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -145,7 +188,6 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           onClick={onMobileClose}
           aria-hidden="true"
         />
-        {/* Drawer */}
         <aside
           style={{
             background: 'var(--brand-navy)',

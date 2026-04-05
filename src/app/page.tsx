@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import AuthGuard from '@/components/layout/AuthGuard';
 import { Menu, Plus, RefreshCw, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,6 +68,7 @@ export default function DashboardPage() {
   }, [mobileSidebarOpen]);
 
   return (
+    <AuthGuard>
     <div className="flex min-h-screen" style={{ background: 'var(--brand-sand)' }}>
       {/* Sidebar — passes mobile state */}
       <Sidebar
@@ -222,5 +224,6 @@ export default function DashboardPage() {
         onSuccess={load}
       />
     </div>
+    </AuthGuard>
   );
 }
