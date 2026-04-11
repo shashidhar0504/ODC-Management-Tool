@@ -21,8 +21,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-import type { OdcRecord, OdcStatus } from '@/lib/types';
-import { deleteOdcRecord, updateOdcStatus } from '@/lib/odc-service';
+import type { OdcRecord, OdcStatus, OdcPaymentStatus, OdcCandidate } from '@/lib/types';
+import { deleteOdcRecord, updateOdcStatus, updateOdcPaymentStatus, updateOdcCandidates } from '@/lib/odc-service';
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: OdcStatus }) {
@@ -45,10 +45,14 @@ function OdcViewModal({
   record,
   onClose,
   onStatusChange,
+  onPaymentStatusChange,
+  onCandidateStatusChange,
 }: {
   record: OdcRecord;
   onClose: () => void;
   onStatusChange: (id: string, status: OdcStatus) => void;
+  onPaymentStatusChange: (id: string, status: OdcPaymentStatus) => void;
+  onCandidateStatusChange: (id: string, candidates: OdcCandidate[]) => void;
 }) {
   const formatINR = (n: number) =>
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(n);
@@ -66,23 +70,50 @@ function OdcViewModal({
       </DialogHeader>
 
       <div className="space-y-4 mt-2">
-        {/* Status row */}
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--brand-slate)' }}>Status:</span>
-          <StatusBadge status={record.status} />
-          <Select
-            defaultValue={record.status}
-            onValueChange={(v) => onStatusChange(record.id, v as OdcStatus)}
-          >
-            <SelectTrigger className="h-7 w-32 text-xs ml-auto">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Status rows */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="flex flex-wrap items-center gap-3 p-3 rounded-md border bg-[rgba(0,0,0,0.015)]" style={{ borderColor: 'hsl(var(--border))' }}>
+            <span className="text-xs font-semibold uppercase tracking-wide min-w-[70px]" style={{ color: 'var(--brand-slate)' }}>Status:</span>
+            <StatusBadge status={record.status} />
+            <Select
+              defaultValue={record.status}
+              onValueChange={(v) => onStatusChange(record.id, v as OdcStatus)}
+            >
+              <SelectTrigger className="h-7 w-28 text-xs ml-auto shrink-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 p-3 rounded-md border bg-[rgba(0,0,0,0.015)]" style={{ borderColor: 'hsl(var(--border))' }}>
+            <span className="text-xs font-semibold uppercase tracking-wide min-w-[70px]" style={{ color: 'var(--brand-slate)' }}>Payment:</span>
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${
+              record.payment_status === 'pending'
+                ? 'bg-amber-50 text-amber-600 border-amber-200'
+                : 'bg-green-50 text-green-600 border-green-200'
+            }`}>
+              {record.payment_status === 'pending' ? <Clock size={10} /> : <CheckCircle size={10} />}
+              {record.payment_status === 'pending' ? 'Pending' : 'Received'}
+            </span>
+            <Select
+              defaultValue={record.payment_status}
+              onValueChange={(v) => onPaymentStatusChange(record.id, v as OdcPaymentStatus)}
+            >
+              <SelectTrigger className="h-7 w-[130px] text-xs ml-auto shrink-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="received_from_company">From Company</SelectItem>
+                <SelectItem value="received_from_event_head">From Event</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <hr style={{ borderColor: 'hsl(var(--border))' }} />
@@ -103,14 +134,56 @@ function OdcViewModal({
 
         {/* Candidates */}
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--brand-slate)' }}>Candidates</p>
-          <div className="flex flex-wrap gap-2">
-            {record.candidates.map((c, i) => (
-              <span key={i} className="px-2.5 py-0.5 rounded-full text-xs font-semibold"
-                style={{ background: 'rgba(184,150,78,0.12)', color: 'var(--brand-navy)', border: '1px solid rgba(184,150,78,0.3)' }}>
-                {c}
-              </span>
-            ))}
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--brand-slate)' }}>Candidates</p>
+            <p className="text-xs font-bold" style={{ color: 'var(--brand-brass)' }}>
+               {record.candidates?.filter(c => c.shift_status === 'completed').length ?? 0} / {record.candidate_count ?? record.candidates?.length ?? 0} Shifts Completed
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            {record.candidates?.map((c, i) => {
+              const isShiftDone = c.shift_status === 'completed';
+              const isPaid = c.payment_status === 'paid';
+              return (
+                <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between p-2 rounded-md border gap-2 bg-white" style={{ borderColor: 'hsl(var(--border))' }}>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--brand-navy)' }}>{c.name}</p>
+                  <div className="flex gap-2 ml-auto">
+                    <button 
+                      type="button"
+                      onClick={() => {
+                         const newCandidates = [...(record.candidates || [])];
+                         newCandidates[i] = { ...c, shift_status: isShiftDone ? 'pending' : 'completed' };
+                         onCandidateStatusChange(record.id, newCandidates);
+                      }}
+                      className="px-2 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1 hover:opacity-80 disabled:opacity-50"
+                      style={{ 
+                        background: isShiftDone ? 'rgba(34,197,94,0.1)' : 'rgba(184,150,78,0.05)', 
+                        color: isShiftDone ? 'rgb(21,128,61)' : 'var(--brand-navy)', 
+                        border: `1px solid ${isShiftDone ? 'rgba(34,197,94,0.3)' : 'rgba(184,150,78,0.2)'}` 
+                      }}>
+                      {isShiftDone ? <CheckCircle size={10} /> : <Clock size={10} />}
+                      Shift {isShiftDone ? 'Done' : 'Pending'}
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                         const newCandidates = [...(record.candidates || [])];
+                         newCandidates[i] = { ...c, payment_status: isPaid ? 'unpaid' : 'paid' };
+                         onCandidateStatusChange(record.id, newCandidates);
+                      }}
+                      className="px-2 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1 hover:opacity-80 disabled:opacity-50"
+                      style={{ 
+                        background: isPaid ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.05)', 
+                        color: isPaid ? 'rgb(21,128,61)' : 'rgb(185,28,28)', 
+                        border: `1px solid ${isPaid ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.2)'}` 
+                      }}>
+                      {isPaid ? <CheckCircle size={10} /> : <XCircle size={10} />}
+                      {isPaid ? 'Paid' : 'Unpaid'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -205,7 +278,12 @@ function MobileCard({
       <div className="flex items-center gap-2 mt-2 flex-wrap">
         <StatusBadge status={record.status} />
         <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(184,150,78,0.1)', color: 'var(--brand-navy)' }}>
-          {record.candidate_count ?? record.candidates?.length ?? 0} students
+          {record.candidates?.filter(c => c.shift_status === 'completed').length ?? 0}/{record.candidate_count ?? record.candidates?.length ?? 0} ready
+        </span>
+        <span className={`text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded-md border ${
+            record.payment_status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-green-50 text-green-600 border-green-200'
+          }`}>
+          {record.payment_status === 'pending' ? 'Unpaid' : 'Paid'}
         </span>
         <span className="text-xs font-bold ml-auto" style={{ color: 'var(--brand-brass)' }}>
           {formatINR(record.total_amount)}
@@ -223,6 +301,7 @@ interface OdcTableProps {
 
 export default function OdcTable({ records, onRefresh }: OdcTableProps) {
   const [viewRecord, setViewRecord] = useState<OdcRecord | null>(null);
+  const [needsRefresh, setNeedsRefresh] = useState(false);
 
   const formatINR = (n: number) =>
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
@@ -242,9 +321,32 @@ export default function OdcTable({ records, onRefresh }: OdcTableProps) {
     try {
       await updateOdcStatus(id, status);
       toast.success(`Status updated to ${status}`);
-      onRefresh();
+      setNeedsRefresh(true);
+      if (viewRecord?.id === id) setViewRecord(prev => prev ? { ...prev, status } : null);
     } catch {
       toast.error('Update failed');
+    }
+  };
+
+  const handlePaymentStatusChange = async (id: string, status: OdcPaymentStatus) => {
+    try {
+      await updateOdcPaymentStatus(id, status);
+      toast.success(`Payment updated to ${status.replace(/_/g, ' ')}`);
+      setNeedsRefresh(true);
+      if (viewRecord?.id === id) setViewRecord(prev => prev ? { ...prev, payment_status: status } : null);
+    } catch {
+      toast.error('Payment update failed');
+    }
+  };
+
+  const handleCandidateStatusChange = async (id: string, candidates: OdcCandidate[]) => {
+    try {
+      await updateOdcCandidates(id, candidates);
+      toast.success(`Candidate statuses updated`);
+      setNeedsRefresh(true);
+      if (viewRecord?.id === id) setViewRecord(prev => prev ? { ...prev, candidates } : null);
+    } catch {
+      toast.error('Candidate update failed');
     }
   };
 
@@ -281,7 +383,7 @@ export default function OdcTable({ records, onRefresh }: OdcTableProps) {
         <table className="odc-table w-full text-sm">
           <thead>
             <tr style={{ borderBottom: '2px solid hsl(var(--border))' }}>
-              {['#', 'Event Name', 'Company', 'Candidates', 'Stipend', 'Total', 'Status', 'Date', 'Actions'].map((h) => (
+              {['#', 'Event Name', 'Company', 'Candidates', 'Stipend', 'Total', 'Payment', 'Status', 'Date', 'Actions'].map((h) => (
                 <th
                   key={h}
                   className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap"
@@ -309,7 +411,7 @@ export default function OdcTable({ records, onRefresh }: OdcTableProps) {
                     className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
                     style={{ background: 'rgba(184,150,78,0.10)', color: 'var(--brand-navy)' }}
                   >
-                    {r.candidate_count ?? r.candidates?.length ?? 0} students
+                    {r.candidates?.filter(c => c.shift_status === 'completed').length ?? 0}/{r.candidate_count ?? r.candidates?.length ?? 0} ready
                   </span>
                 </td>
                 <td className="px-4 py-3 text-xs font-medium" style={{ color: 'var(--brand-navy)' }}>
@@ -317,6 +419,14 @@ export default function OdcTable({ records, onRefresh }: OdcTableProps) {
                 </td>
                 <td className="px-4 py-3 text-xs font-bold" style={{ color: 'var(--brand-brass)' }}>
                   {formatINR(r.total_amount)}
+                </td>
+                <td className="px-4 py-3 text-xs whitespace-nowrap">
+                  <span className={`inline-flex items-center gap-1 font-semibold ${
+                    r.payment_status === 'pending' ? 'text-amber-600' : 'text-green-600'
+                  }`}>
+                    {r.payment_status === 'pending' ? <Clock size={12} /> : <CheckCircle size={12} />}
+                    {r.payment_status === 'pending' ? 'Pending' : 'Received'}
+                  </span>
                 </td>
                 <td className="px-4 py-3">
                   <StatusBadge status={r.status} />
@@ -341,12 +451,22 @@ export default function OdcTable({ records, onRefresh }: OdcTableProps) {
       </div>
 
       {/* ── View modal ── */}
-      <Dialog open={!!viewRecord} onOpenChange={(open) => !open && setViewRecord(null)}>
+      <Dialog open={!!viewRecord} onOpenChange={(open) => {
+        if (!open) {
+          setViewRecord(null);
+          if (needsRefresh) {
+            onRefresh();
+            setNeedsRefresh(false);
+          }
+        }
+      }}>
         {viewRecord && (
           <OdcViewModal
             record={viewRecord}
             onClose={() => setViewRecord(null)}
             onStatusChange={handleStatusChange}
+            onPaymentStatusChange={handlePaymentStatusChange}
+            onCandidateStatusChange={handleCandidateStatusChange}
           />
         )}
       </Dialog>

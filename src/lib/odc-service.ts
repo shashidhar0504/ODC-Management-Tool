@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { OdcFormData, OdcRecord, OdcStatus } from './types';
+import { OdcFormData, OdcRecord, OdcStatus, OdcPaymentStatus, OdcCandidate } from './types';
 
 const BUCKET = 'odc-documents';
 
@@ -54,8 +54,10 @@ export async function createOdcRecord(
 ): Promise<OdcRecord> {
   const payload = {
     ...formData,
+    candidates: formData.candidates.map(name => ({ name, shift_status: 'pending', payment_status: 'unpaid' })),
     document_urls: [], // Keep it empty for DB schema compatibility
     status: 'pending' as OdcStatus,
+    payment_status: 'pending' as OdcPaymentStatus,
   };
 
   const { data, error } = await supabase
@@ -112,6 +114,26 @@ export async function updateOdcStatus(id: string, status: OdcStatus): Promise<vo
     .eq('id', id);
 
   if (error) throw new Error(`Failed to update status: ${error.message}`);
+}
+
+// ─── Update ODC payment status ────────────────────────────────────────────────
+export async function updateOdcPaymentStatus(id: string, payment_status: OdcPaymentStatus): Promise<void> {
+  const { error } = await supabase
+    .from('odc_records')
+    .update({ payment_status })
+    .eq('id', id);
+
+  if (error) throw new Error(`Failed to update payment status: ${error.message}`);
+}
+
+// ─── Update ODC candidates (e.g. status) ──────────────────────────────────────
+export async function updateOdcCandidates(id: string, candidates: OdcCandidate[]): Promise<void> {
+  const { error } = await supabase
+    .from('odc_records')
+    .update({ candidates })
+    .eq('id', id);
+
+  if (error) throw new Error(`Failed to update candidates: ${error.message}`);
 }
 
 // ─── Delete ODC record (+ storage files) ─────────────────────────────────────
