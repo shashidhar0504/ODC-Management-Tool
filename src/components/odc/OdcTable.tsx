@@ -74,9 +74,9 @@ function OdcViewModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="flex flex-wrap items-center gap-3 p-3 rounded-md border bg-[rgba(0,0,0,0.015)]" style={{ borderColor: 'hsl(var(--border))' }}>
             <span className="text-xs font-semibold uppercase tracking-wide min-w-[70px]" style={{ color: 'var(--brand-slate)' }}>Status:</span>
-            <StatusBadge status={record.status} />
+            <StatusBadge status={record.status || 'pending'} />
             <Select
-              defaultValue={record.status}
+              defaultValue={record.status || 'pending'}
               onValueChange={(v) => onStatusChange(record.id, v as OdcStatus)}
             >
               <SelectTrigger className="h-7 w-28 text-xs ml-auto shrink-0">
@@ -98,10 +98,10 @@ function OdcViewModal({
                 : 'bg-green-50 text-green-600 border-green-200'
             }`}>
               {record.payment_status === 'pending' ? <Clock size={10} /> : <CheckCircle size={10} />}
-              {record.payment_status === 'pending' ? 'Pending' : 'Received'}
+              {record.payment_status === 'pending' || !record.payment_status ? 'Pending' : 'Received'}
             </span>
             <Select
-              defaultValue={record.payment_status}
+              defaultValue={record.payment_status || 'pending'}
               onValueChange={(v) => onPaymentStatusChange(record.id, v as OdcPaymentStatus)}
             >
               <SelectTrigger className="h-7 w-[130px] text-xs ml-auto shrink-0">
@@ -137,22 +137,26 @@ function OdcViewModal({
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--brand-slate)' }}>Candidates</p>
             <p className="text-xs font-bold" style={{ color: 'var(--brand-brass)' }}>
-               {record.candidates?.filter(c => c.shift_status === 'completed').length ?? 0} / {record.candidate_count ?? record.candidates?.length ?? 0} Shifts Completed
+               {record.candidates?.filter(c => c && typeof c === 'object' && c.shift_status === 'completed').length ?? 0} / {record.candidate_count ?? record.candidates?.length ?? 0} Shifts Completed
             </p>
           </div>
           <div className="flex flex-col gap-2">
             {record.candidates?.map((c, i) => {
-              const isShiftDone = c.shift_status === 'completed';
-              const isPaid = c.payment_status === 'paid';
+              const isObj = c && typeof c === 'object';
+              const isShiftDone = isObj && c.shift_status === 'completed';
+              const isPaid = isObj && c.payment_status === 'paid';
+              const cName = isObj ? (c.name || 'Unknown') : String(c || `Candidate ${i+1}`);
+              
               return (
                 <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between p-2 rounded-md border gap-2 bg-white" style={{ borderColor: 'hsl(var(--border))' }}>
-                  <p className="text-sm font-semibold" style={{ color: 'var(--brand-navy)' }}>{c.name}</p>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--brand-navy)' }}>{cName}</p>
                   <div className="flex gap-2 ml-auto">
                     <button 
                       type="button"
                       onClick={() => {
                          const newCandidates = [...(record.candidates || [])];
-                         newCandidates[i] = { ...c, shift_status: isShiftDone ? 'pending' : 'completed' };
+                         const existingObj = (newCandidates[i] && typeof newCandidates[i] === 'object') ? newCandidates[i] : { name: String(newCandidates[i]) };
+                         newCandidates[i] = { ...existingObj, shift_status: isShiftDone ? 'pending' : 'completed' } as any;
                          onCandidateStatusChange(record.id, newCandidates);
                       }}
                       className="px-2 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1 hover:opacity-80 disabled:opacity-50"
@@ -168,7 +172,8 @@ function OdcViewModal({
                       type="button"
                       onClick={() => {
                          const newCandidates = [...(record.candidates || [])];
-                         newCandidates[i] = { ...c, payment_status: isPaid ? 'unpaid' : 'paid' };
+                         const existingObj = (newCandidates[i] && typeof newCandidates[i] === 'object') ? newCandidates[i] : { name: String(newCandidates[i]) };
+                         newCandidates[i] = { ...existingObj, payment_status: isPaid ? 'unpaid' : 'paid' } as any;
                          onCandidateStatusChange(record.id, newCandidates);
                       }}
                       className="px-2 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1 hover:opacity-80 disabled:opacity-50"
@@ -200,8 +205,8 @@ function OdcViewModal({
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--brand-slate)' }}>Documents</p>
             <div className="space-y-1.5">
-              {record.document_urls.map((url, i) => (
-                url.startsWith('http') ? (
+              {record.document_urls?.map((url, i) => (
+                (typeof url === 'string' && url.startsWith('http')) ? (
                   <a key={i} href={url} target="_blank" rel="noopener noreferrer"
                     className="text-xs underline block" style={{ color: 'var(--brand-brass)' }}>
                     Document {i + 1}
@@ -278,12 +283,12 @@ function MobileCard({
       <div className="flex items-center gap-2 mt-2 flex-wrap">
         <StatusBadge status={record.status} />
         <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(184,150,78,0.1)', color: 'var(--brand-navy)' }}>
-          {record.candidates?.filter(c => c.shift_status === 'completed').length ?? 0}/{record.candidate_count ?? record.candidates?.length ?? 0} ready
+          {record.candidates?.filter(c => c && typeof c === 'object' && c.shift_status === 'completed').length ?? 0}/{record.candidate_count ?? record.candidates?.length ?? 0} ready
         </span>
         <span className={`text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded-md border ${
-            record.payment_status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-green-50 text-green-600 border-green-200'
+            record.payment_status === 'pending' || !record.payment_status ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-green-50 text-green-600 border-green-200'
           }`}>
-          {record.payment_status === 'pending' ? 'Unpaid' : 'Paid'}
+          {record.payment_status === 'pending' || !record.payment_status ? 'Unpaid' : 'Paid'}
         </span>
         <span className="text-xs font-bold ml-auto" style={{ color: 'var(--brand-brass)' }}>
           {formatINR(record.total_amount)}
@@ -411,7 +416,7 @@ export default function OdcTable({ records, onRefresh }: OdcTableProps) {
                     className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
                     style={{ background: 'rgba(184,150,78,0.10)', color: 'var(--brand-navy)' }}
                   >
-                    {r.candidates?.filter(c => c.shift_status === 'completed').length ?? 0}/{r.candidate_count ?? r.candidates?.length ?? 0} ready
+                    {r.candidates?.filter(c => c && typeof c === 'object' && c.shift_status === 'completed').length ?? 0}/{r.candidate_count ?? r.candidates?.length ?? 0} ready
                   </span>
                 </td>
                 <td className="px-4 py-3 text-xs font-medium" style={{ color: 'var(--brand-navy)' }}>
@@ -422,14 +427,14 @@ export default function OdcTable({ records, onRefresh }: OdcTableProps) {
                 </td>
                 <td className="px-4 py-3 text-xs whitespace-nowrap">
                   <span className={`inline-flex items-center gap-1 font-semibold ${
-                    r.payment_status === 'pending' ? 'text-amber-600' : 'text-green-600'
+                    r.payment_status === 'pending' || !r.payment_status ? 'text-amber-600' : 'text-green-600'
                   }`}>
-                    {r.payment_status === 'pending' ? <Clock size={12} /> : <CheckCircle size={12} />}
-                    {r.payment_status === 'pending' ? 'Pending' : 'Received'}
+                    {r.payment_status === 'pending' || !r.payment_status ? <Clock size={12} /> : <CheckCircle size={12} />}
+                    {r.payment_status === 'pending' || !r.payment_status ? 'Pending' : 'Received'}
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <StatusBadge status={r.status} />
+                  <StatusBadge status={r.status || 'pending'} />
                 </td>
                 <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: 'var(--brand-slate)' }}>
                   {format(new Date(r.created_at), 'dd MMM yyyy')}
