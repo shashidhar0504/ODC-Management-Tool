@@ -50,15 +50,11 @@ export async function uploadDocuments(files: File[]): Promise<string[]> {
 
 // ─── Create a new ODC record ──────────────────────────────────────────────────
 export async function createOdcRecord(
-  formData: OdcFormData,
-  files: File[]
+  formData: OdcFormData
 ): Promise<OdcRecord> {
-  // Upload documents (base64 fallback if storage bucket missing)
-  const document_urls = await uploadDocuments(files);
-
   const payload = {
     ...formData,
-    document_urls,
+    document_urls: [], // Keep it empty for DB schema compatibility
     status: 'pending' as OdcStatus,
   };
 

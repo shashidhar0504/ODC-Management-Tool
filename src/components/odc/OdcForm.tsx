@@ -5,15 +5,13 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Loader2, Building2, CalendarDays, Users, IndianRupee, FileInput, MessageSquare } from 'lucide-react';
+import { Loader2, Building2, Users, IndianRupee, MessageSquare } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 import TagInput from './TagInput';
-import FileUpload from './FileUpload';
-import SignaturePad from './SignaturePad';
 import { createOdcRecord } from '@/lib/odc-service';
 
 // ─── Validation Schema ───────────────────────────────────────────────────────
@@ -103,10 +101,6 @@ function ComputedField({ label, value }: { label: string; value: string }) {
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function OdcForm({ onSuccess }: OdcFormProps) {
-  const [files, setFiles] = useState<File[]>([]);
-  const [guiderSig, setGuiderSig] = useState<string | null>(null);
-  const [managerSig, setManagerSig] = useState<string | null>(null);
-  const [sigErrors, setSigErrors] = useState<{ guider?: string; manager?: string }>({});
   const [submitting, setSubmitting] = useState(false);
 
   const {
@@ -132,38 +126,20 @@ export default function OdcForm({ onSuccess }: OdcFormProps) {
 
   // ─── Submit ────────────────────────────────────────────────────────────────
   const onSubmit = async (values: FormValues) => {
-    // Validate signatures
-    const sErr: typeof sigErrors = {};
-    if (!guiderSig)  sErr.guider  = 'Guider signature is required';
-    if (!managerSig) sErr.manager = 'Manager signature is required';
-    if (sErr.guider || sErr.manager) {
-      setSigErrors(sErr);
-      return;
-    }
-    setSigErrors({});
     setSubmitting(true);
 
     try {
-      await createOdcRecord(
-        {
-          ...values,
-          stipend: Number(values.stipend),
-          total_amount: totalAmount,
-          document_urls: [],
-          guider_signature: guiderSig ?? undefined,
-          manager_signature: managerSig ?? undefined,
-        },
-        files
-      );
+      await createOdcRecord({
+        ...values,
+        stipend: Number(values.stipend),
+        total_amount: totalAmount,
+      });
 
       toast.success('ODC record created successfully!', {
         description: `${values.odc_name} — ${formatINR(totalAmount)} total`,
       });
 
       reset();
-      setFiles([]);
-      setGuiderSig(null);
-      setManagerSig(null);
       onSuccess?.();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -256,18 +232,6 @@ export default function OdcForm({ onSuccess }: OdcFormProps) {
         </div>
       </div>
 
-      {/* ── Section 3: Documents ────────────────────────────────────────────── */}
-      <div className="form-section animate-fade-slide-up stagger-3">
-        <SectionHeader
-          icon={FileInput}
-          title="Document Upload"
-          subtitle="Supporting documents (JPG, PNG, PDF, DOC)"
-        />
-        <FileUpload
-          files={files}
-          onChange={setFiles}
-        />
-      </div>
 
       {/* ── Section 4: Remarks ───────────────────────────────────────────────── */}
       <div className="form-section animate-fade-slide-up stagger-3">
@@ -283,28 +247,6 @@ export default function OdcForm({ onSuccess }: OdcFormProps) {
         />
       </div>
 
-      {/* ── Section 5: Signatures ────────────────────────────────────────────── */}
-      <div className="form-section animate-fade-slide-up stagger-4">
-        <SectionHeader
-          icon={CalendarDays}
-          title="Digital Signatures"
-          subtitle="Guider and Manager must sign to authorise this ODC"
-        />
-        <div className="grid gap-6 sm:grid-cols-2">
-          <SignaturePad
-            label="Guider Signature"
-            role="ODC Guider / Coordinator"
-            onChange={(d) => { setGuiderSig(d); setSigErrors((e) => ({ ...e, guider: undefined })); }}
-            error={sigErrors.guider}
-          />
-          <SignaturePad
-            label="Manager Signature"
-            role="Department Manager / HOD"
-            onChange={(d) => { setManagerSig(d); setSigErrors((e) => ({ ...e, manager: undefined })); }}
-            error={sigErrors.manager}
-          />
-        </div>
-      </div>
 
       {/* ── Summary bar ─────────────────────────────────────────────────────── */}
       {studentCount > 0 && (
@@ -327,7 +269,7 @@ export default function OdcForm({ onSuccess }: OdcFormProps) {
         <Button
           type="button"
           variant="outline"
-          onClick={() => { reset(); setFiles([]); setGuiderSig(null); setManagerSig(null); }}
+          onClick={() => { reset(); }}
           disabled={submitting}
           className="w-full sm:w-auto"
         >

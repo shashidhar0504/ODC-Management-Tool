@@ -24,7 +24,4 @@ export interface OdcFormData {
   stipend: number;
   total_amount: number;
   remarks?: string;
-  document_urls: string[];
-  guider_signature?: string;
-  manager_signature?: string;
 }
